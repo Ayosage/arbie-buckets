@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+// import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useWallet } from '@/components/wallet/useWallet';
 import ConnectButton from '@/components/wallet/ConnectButton';
-import { w3mButton } from '@reown/appkit/react';
+// import { w3mButton } from '@reown/appkit/react';
 
 export default function WalletPage() {
   const { isConnected, assets, isLoading } = useWallet();
-  const [transactions] = useState([]);
+  // const [transactions] = useState([]);
 
   return (
     <DashboardLayout>
