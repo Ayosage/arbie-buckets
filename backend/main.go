@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -10,6 +10,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
+
+var log *slog.Logger = nil
+
+func init() {
+	log = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetLogLoggerLevel(slog.LevelInfo)
+	slog.SetDefault(log)
+}
 
 func main() {
 	_ = godotenv.Load()
@@ -48,9 +56,9 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("Server starting on port %s", port)
+	log.Info("Server starting on port " + port)
 	if err := http.ListenAndServe(":"+port, r); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		log.Error("Failed to start server " + string(err.Error()))
 	}
 }
 
