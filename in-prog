@@ -1,0 +1,11 @@
+Status:
+
+backend connected to base network test net - indicators on front end dash 
+smart contract not connected 
+gin api's functioning as intended
+
+To Do:
+
+Compile Deploy and Connect Smart Contract to application
+Connect more networks to application
+Run test transactions 
