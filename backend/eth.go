@@ -112,6 +112,8 @@ func Initialize() error {
 	client, err = ethclient.Dial(rpcURL)
 	if err != nil {
 		return fmt.Errorf("failed to connect to blockchain at %s: %w", rpcURL, err)
+	} else {
+		log.Printf("Connected to blockchain at %s", rpcURL)
 	}
 
 	// Verify connection by getting network ID
