@@ -1,4 +1,4 @@
-module tradingbase.io/api
+module github.com/arbie-buckets
 
 go 1.23.0
 

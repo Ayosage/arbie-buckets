@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	coingecko "github.com/arbie-buckets/service"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -221,7 +222,7 @@ func getExchanges(c *gin.Context) {
 		{"id": "sushiswap", "name": "Sushiswap"},
 		{"id": "aerodrome", "name": "Aerodrome"},
 	}
-
+	coingecko.GetCoinPricesFromExchange("binance")
 	c.JSON(http.StatusOK, gin.H{"exchanges": exchanges})
 }
 
