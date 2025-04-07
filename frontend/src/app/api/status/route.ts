@@ -13,6 +13,7 @@ export async function GET() {
       const response = await fetch(`${backendUrl}/api/status`, {
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate', // Prevent caching
         },
         signal: controller.signal,
         next: { revalidate: 30 }, // Revalidate every 30 seconds
