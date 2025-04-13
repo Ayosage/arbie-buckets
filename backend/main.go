@@ -24,6 +24,12 @@ func init() {
 func main() {
 	log.Println("Starting Base Network Trading backend...")
 
+	// Load .env files
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Set Gin to production mode
 	gin.SetMode(gin.ReleaseMode)
 

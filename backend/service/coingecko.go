@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -16,8 +17,8 @@ func GetCoinPricesFromExchange(exchange string) {
 	req, _ := http.NewRequest("GET", url, nil)
 
 	req.Header.Add("accept", "application/json")
-	// Ask for API Key
-	req.Header.Add("x-cg-demo-api-key", "")
+	coingeckoAPI := os.Getenv("COINGECKO_API_KEY")
+	req.Header.Add("x-cg-demo-api-key", coingeckoAPI)
 
 	res, err := http.DefaultClient.Do(req)
 
