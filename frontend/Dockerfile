@@ -1,21 +1,21 @@
-FROM node:20-alpine
+# FROM node:20-alpine
 
-WORKDIR /app
+# WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# # Copy package files
+# COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# # Install dependencies
+# RUN npm install
 
-# Copy the rest of the application code
-COPY . .
+# # Copy the rest of the application code
+# COPY . .
 
-# Build the Next.js application
-RUN npm run build
+# # Build the Next.js application
+# RUN npm run build
 
-# Expose port 3000
-EXPOSE 3000
+# # Expose port 3000
+# EXPOSE 3000
 
-# Start the application
-CMD ["npm", "start"]
+# # Start the application
+# CMD ["npm", "start"]
