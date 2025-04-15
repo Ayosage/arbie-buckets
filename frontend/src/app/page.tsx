@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import BlockchainStatus from '@/components/dashboard/BlockchainStatus';
 import BackendStatus from '@/components/dashboard/BackendStatus';
+import NetworkStats from '@/components/dashboard/NetworkStats';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 
 export default function Home() {
@@ -27,6 +28,9 @@ export default function Home() {
             </p>
           </div>
         </div>
+
+        {/* Network Stats */}
+        <NetworkStats />
         
         <div className="bg-white dark:bg-gray-800 shadow overflow-hidden rounded-lg">
           <div className="px-4 py-5 sm:px-6">

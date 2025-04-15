@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/joho/godotenv"
 
 	"github.com/arbie-buckets/blockchain/connection" // Ensure connection package is imported for connection management
@@ -98,6 +99,7 @@ func Initialize() error {
 
 	rpcURL := os.Getenv("BASE_TESTNET_RPC_URL")
 	if rpcURL == "" {
+		println("Warning: BASE_TESTNET_RPC_URL not set, using default")
 		rpcURL = "https://sepolia.base.org" // Default to Base testnet
 	}
 
@@ -153,9 +155,9 @@ func NewBlockchainService(connManager *connection.ConnectionManager, contractAdd
 	}
 
 	// Get private key from environment
-	privateKeyHex := os.Getenv("WALLET_PRIVATE_KEY")
+	privateKeyHex := os.Getenv("TEST_WALLET_PK_1")
 	if privateKeyHex == "" {
-		return nil, errors.New("WALLET_PRIVATE_KEY environment variable not set")
+		return nil, errors.New("TEST_WALLET_PK_1 environment variable not set")
 	}
 
 	// Remove "0x" prefix if present
@@ -450,4 +452,18 @@ func (s *BlockchainService) GetBlockchainStatus() map[string]interface{} {
 	}
 
 	return result
+}
+
+// GetChainID returns the chain ID of the connected network
+func (s *BlockchainService) GetChainID() *big.Int {
+	return s.chainID
+}
+
+// GetConnectionClient returns the ethclient from the connection manager
+func (s *BlockchainService) GetConnectionClient() (*ethclient.Client, error) {
+	if s.connManager == nil {
+		return nil, errors.New("connection manager not initialized")
+	}
+
+	return s.connManager.Client()
 }

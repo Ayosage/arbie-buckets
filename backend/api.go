@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"math/big"
 	"net/http"
@@ -39,8 +40,9 @@ func SetupRoutes(r *gin.Engine, blockchainService *blockchain.BlockchainService)
 	// API group
 	api := r.Group("/api")
 	{
-		// Status endpoint
+		// Status endpoints
 		api.GET("/status", getBlockchainStatus(blockchainService))
+		api.GET("/ping", pingNetwork(blockchainService))
 
 		// Wallet endpoints
 		api.GET("/wallet/balance", getWalletBalance(blockchainService))
@@ -411,4 +413,72 @@ func getTokens(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"tokens": tokens})
+}
+
+// pingNetwork tests connectivity to the Base blockchain network
+func pingNetwork(blockchainService *blockchain.BlockchainService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		startTime := time.Now()
+
+		// Check if blockchain service is initialized
+		if blockchainService == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"connected": false,
+				"error":     "Blockchain service not available",
+				"timestamp": time.Now().Format(time.RFC3339),
+			})
+			return
+		}
+
+		// Get the connection client to test connectivity
+		client, err := blockchainService.GetConnectionClient()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"connected":  false,
+				"error":      err.Error(),
+				"latency_ms": time.Since(startTime).Milliseconds(),
+				"latency":    time.Since(startTime).String(),
+				"timestamp":  time.Now().Format(time.RFC3339),
+			})
+			return
+		}
+
+		// Query the latest block number as a ping test
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		blockNumber, err := client.BlockNumber(ctx)
+
+		// Calculate response time
+		latency := time.Since(startTime)
+
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"connected":  false,
+				"error":      err.Error(),
+				"latency_ms": latency.Milliseconds(),
+				"latency":    latency.String(),
+				"timestamp":  time.Now().Format(time.RFC3339),
+			})
+			return
+		}
+
+		// Get additional network information
+		gasPrice, err := client.SuggestGasPrice(ctx)
+		if err != nil {
+			gasPrice = big.NewInt(0)
+		}
+
+		// Return comprehensive network status
+		c.JSON(http.StatusOK, gin.H{
+			"connected":      true,
+			"latency_ms":     latency.Milliseconds(),
+			"latency":        latency.String(),
+			"block_number":   blockNumber,
+			"chain_id":       blockchainService.GetChainID().String(),
+			"gas_price_wei":  gasPrice.String(),
+			"gas_price_gwei": float64(gasPrice.Int64()) / 1000000000,
+			"timestamp":      time.Now().Format(time.RFC3339),
+		})
+	}
 }

@@ -105,7 +105,7 @@ const BlockchainStatus = ({ className }: BlockchainStatusProps) => {
     }
     
     fetchStatus();
-    
+    console.log('Fetching blockchain status...');
     // Refresh status every 30 seconds
     const interval = setInterval(fetchStatus, 30000);
     

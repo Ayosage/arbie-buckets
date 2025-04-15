@@ -28,7 +28,7 @@ export async function GET() {
       const data = await response.json();
       
       // Return the data from our API route
-      console.log('Fetched blockchain status:', data);
+      console.log('Network Get : Fetched blockchain status:', data);
       return NextResponse.json(data);
     } catch (fetchError) {
       clearTimeout(timeoutId);

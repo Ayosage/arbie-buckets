@@ -139,9 +139,9 @@ func NewBlockchainService(contractAddress string) (*BlockchainService, error) {
 	}
 
 	// Get private key from environment
-	privateKeyHex := os.Getenv("WALLET_PRIVATE_KEY")
+	privateKeyHex := os.Getenv("TEST_WALLET_PK_1")
 	if privateKeyHex == "" {
-		return nil, errors.New("WALLET_PRIVATE_KEY environment variable not set")
+		return nil, errors.New("TEST_WALLET_PK_1 environment variable not set")
 	}
 
 	// Remove "0x" prefix if present
