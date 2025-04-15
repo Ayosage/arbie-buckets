@@ -9,15 +9,18 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+
+	"github.com/arbie-buckets/blockchain"
 )
 
 func init() {
 	// Load environment variables
 	_ = godotenv.Load()
 
-	// Initialize blockchain connection
-	if err := Initialize(); err != nil {
-		log.Printf("Warning: Failed to initialize blockchain connection: %v", err)
+	// Initialize blockchain service with resilient connection
+	if err := blockchain.Initialize(); err != nil {
+		log.Printf("Warning: Failed to initialize blockchain service: %v", err)
+		log.Println("Application will continue and attempt to reconnect automatically")
 	}
 }
 
@@ -40,20 +43,24 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Initialize blockchain service
-	var blockchainService *BlockchainService
-	contractAddress := os.Getenv("ARBITRAGE_CONTRACT_ADDRESS")
-	if contractAddress != "" {
-		var err error
-		blockchainService, err = NewBlockchainService(contractAddress)
-		if err != nil {
-			log.Printf("Warning: Failed to initialize blockchain service: %v", err)
-		} else {
+	// Get blockchain service instance
+	blockchainService := blockchain.GetService()
+
+	// Log startup status
+	if blockchainService != nil {
+		status := blockchainService.GetBlockchainStatus()
+		if status["connected"].(bool) {
 			log.Println("Blockchain service initialized successfully")
-			log.Printf("Connected to Base Network with contract at %s", contractAddress)
+			log.Printf("Connected to %s (Chain ID: %s)", status["network"], status["chainId"])
+			if addr, ok := status["walletAddress"]; ok {
+				log.Printf("Using wallet address: %s", addr)
+			}
+		} else {
+			log.Println("Warning: Blockchain service not connected, will attempt reconnection automatically")
 		}
 	} else {
-		log.Println("Warning: ARBITRAGE_CONTRACT_ADDRESS not set, running in limited mode")
+		log.Println("Warning: Blockchain service not available, running in limited mode")
+		log.Println("Application will attempt to reconnect automatically")
 	}
 
 	// Set up API routes with the blockchain service
@@ -72,5 +79,5 @@ func main() {
 	}
 
 	// Close blockchain connection when server stops
-	defer Close()
+	defer blockchain.Close()
 }

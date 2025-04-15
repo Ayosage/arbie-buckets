@@ -1,31 +1,48 @@
 package main
 
 import (
+	"context"
 	"log"
 	"math/big"
 	"net/http"
 	"time"
 
-	coingecko "github.com/arbie-buckets/service"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
+
+	"github.com/arbie-buckets/blockchain"
 )
 
 // SetupRoutes configures all API routes
-func SetupRoutes(r *gin.Engine, blockchainService *BlockchainService) {
+func SetupRoutes(r *gin.Engine, blockchainService *blockchain.BlockchainService) {
 	// Health check endpoint
 	r.GET("/ping", func(c *gin.Context) {
+		// Check blockchain connection health if service is available
+		var blockchainStatus string
+		if blockchainService != nil {
+			status := blockchainService.GetBlockchainStatus()
+			if status["connected"].(bool) {
+				blockchainStatus = "healthy"
+			} else {
+				blockchainStatus = "unhealthy"
+			}
+		} else {
+			blockchainStatus = "unavailable"
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"status":    "ok",
-			"timestamp": time.Now().Format(time.RFC3339),
+			"status":     "ok",
+			"timestamp":  time.Now().Format(time.RFC3339),
+			"blockchain": blockchainStatus,
 		})
 	})
 
 	// API group
 	api := r.Group("/api")
 	{
-		// Status endpoint
+		// Status endpoints
 		api.GET("/status", getBlockchainStatus(blockchainService))
+		api.GET("/ping", pingNetwork(blockchainService))
 
 		// Wallet endpoints
 		api.GET("/wallet/balance", getWalletBalance(blockchainService))
@@ -46,34 +63,27 @@ func SetupRoutes(r *gin.Engine, blockchainService *BlockchainService) {
 }
 
 // Status handler
-func getBlockchainStatus(blockchainService *BlockchainService) gin.HandlerFunc {
+func getBlockchainStatus(blockchainService *blockchain.BlockchainService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		status := map[string]interface{}{
-			"connected": blockchainService != nil,
-			"network":   "Base Mainnet",
-		}
-
 		if blockchainService != nil {
-			// Get chain ID
-			chainID := blockchainService.chainID.String()
-			status["chainId"] = chainID
-
-			// Get wallet address
-			walletAddress, err := blockchainService.GetWalletAddress()
-			if err == nil {
-				status["walletAddress"] = walletAddress.Hex()
-			}
-
-			// Get timestamp
+			// Get status directly from blockchain service
+			status := blockchainService.GetBlockchainStatus()
 			status["timestamp"] = time.Now().Format(time.RFC3339)
+			c.JSON(http.StatusOK, status)
+		} else {
+			// Return disconnected status if service unavailable
+			c.JSON(http.StatusOK, gin.H{
+				"connected": false,
+				"network":   "Base Mainnet",
+				"status":    "Disconnected",
+				"timestamp": time.Now().Format(time.RFC3339),
+			})
 		}
-
-		c.JSON(http.StatusOK, status)
 	}
 }
 
 // Wallet handlers
-func getWalletBalance(blockchainService *BlockchainService) gin.HandlerFunc {
+func getWalletBalance(blockchainService *blockchain.BlockchainService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check if blockchain service is initialized
 		if blockchainService == nil {
@@ -106,9 +116,7 @@ func getWalletBalance(blockchainService *BlockchainService) gin.HandlerFunc {
 				Decimals: 18,
 			},
 		}
-
-		print(tokenAddresses) // For debugging purposes, to see the token addresses
-
+		print(tokenAddresses) // For debugging purposes, to ensure token addresses are loaded correctly
 		// In a real implementation, you would fetch actual balances
 		// For now, using mock data to avoid blockchain calls for demonstration
 		// Uncomment the below code for actual blockchain integration:
@@ -202,7 +210,7 @@ func getTransactions(c *gin.Context) {
 }
 
 // Arbitrage handlers
-func getArbitrageOpportunities(blockchainService *BlockchainService) gin.HandlerFunc {
+func getArbitrageOpportunities(blockchainService *blockchain.BlockchainService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check if blockchain service is initialized
 		if blockchainService == nil {
@@ -269,7 +277,7 @@ func getArbitrageSettings(c *gin.Context) {
 		"minimumProfitPercentage": 0.5,
 		"tradingAmount":           1000,
 		"tradingInterval":         60,
-		"exchanges":               []string{"Uniswap", "Sushiswap", "Aerodrome"},
+		"exchanges":               []string{"Uniswap", "Sushiswap", "Aerodrome", "Alienbase"},
 	}
 
 	c.JSON(http.StatusOK, settings)
@@ -287,7 +295,7 @@ func updateArbitrageSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func executeArbitrageTrade(blockchainService *BlockchainService) gin.HandlerFunc {
+func executeArbitrageTrade(blockchainService *blockchain.BlockchainService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check if blockchain service is initialized
 		if blockchainService == nil {
@@ -391,8 +399,9 @@ func getExchanges(c *gin.Context) {
 		{"id": "uniswap", "name": "Uniswap"},
 		{"id": "sushiswap", "name": "Sushiswap"},
 		{"id": "aerodrome", "name": "Aerodrome"},
+		{"id": "alienbase", "name": "Alienbase"},
 	}
-	coingecko.GetCoinPricesFromExchange("binance")
+
 	c.JSON(http.StatusOK, gin.H{"exchanges": exchanges})
 }
 
@@ -404,4 +413,72 @@ func getTokens(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"tokens": tokens})
+}
+
+// pingNetwork tests connectivity to the Base blockchain network
+func pingNetwork(blockchainService *blockchain.BlockchainService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		startTime := time.Now()
+
+		// Check if blockchain service is initialized
+		if blockchainService == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"connected": false,
+				"error":     "Blockchain service not available",
+				"timestamp": time.Now().Format(time.RFC3339),
+			})
+			return
+		}
+
+		// Get the connection client to test connectivity
+		client, err := blockchainService.GetConnectionClient()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"connected":  false,
+				"error":      err.Error(),
+				"latency_ms": time.Since(startTime).Milliseconds(),
+				"latency":    time.Since(startTime).String(),
+				"timestamp":  time.Now().Format(time.RFC3339),
+			})
+			return
+		}
+
+		// Query the latest block number as a ping test
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		blockNumber, err := client.BlockNumber(ctx)
+
+		// Calculate response time
+		latency := time.Since(startTime)
+
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"connected":  false,
+				"error":      err.Error(),
+				"latency_ms": latency.Milliseconds(),
+				"latency":    latency.String(),
+				"timestamp":  time.Now().Format(time.RFC3339),
+			})
+			return
+		}
+
+		// Get additional network information
+		gasPrice, err := client.SuggestGasPrice(ctx)
+		if err != nil {
+			gasPrice = big.NewInt(0)
+		}
+
+		// Return comprehensive network status
+		c.JSON(http.StatusOK, gin.H{
+			"connected":      true,
+			"latency_ms":     latency.Milliseconds(),
+			"latency":        latency.String(),
+			"block_number":   blockNumber,
+			"chain_id":       blockchainService.GetChainID().String(),
+			"gas_price_wei":  gasPrice.String(),
+			"gas_price_gwei": float64(gasPrice.Int64()) / 1000000000,
+			"timestamp":      time.Now().Format(time.RFC3339),
+		})
+	}
 }

@@ -12,6 +12,7 @@ interface StatusData {
   backend: string;
   timestamp: string;
   env?: string;
+  error?: string;
 }
 
 const BackendStatus = ({ className }: BackendStatusProps) => {
@@ -23,15 +24,28 @@ const BackendStatus = ({ className }: BackendStatusProps) => {
     const fetchStatus = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/ping');
         
-        if (!response.ok) {
-          throw new Error(`Error: ${response.status}`);
-        }
+        // Add cache busting parameter to prevent caching
+        const cacheBuster = new Date().getTime();
+        const response = await fetch(`/api/ping?_=${cacheBuster}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
         
         const data = await response.json();
+        
+        // We'll process the data regardless of response status
         setStatus(data);
-        setError(null);
+        
+        // If there's an error property in the response, set the error state
+        if (data.error) {
+          setError(`Backend connection error: ${data.error}`);
+        } else {
+          setError(null);
+        }
       } catch (err) {
         console.error('Failed to fetch backend status:', err);
         setError('Failed to connect to backend service');
@@ -39,14 +53,16 @@ const BackendStatus = ({ className }: BackendStatusProps) => {
           status: 'error',
           frontend: 'healthy',
           backend: 'unreachable',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          error: err instanceof Error ? err.message : 'Unknown error'
         });
       } finally {
         setLoading(false);
       }
     };
+    
     if (error) {
-        console.log(error)
+      console.log('Backend Status Error:', error);
     }
     
     fetchStatus();
@@ -70,17 +86,20 @@ const BackendStatus = ({ className }: BackendStatusProps) => {
     <div className={`flex items-center ${className}`}>
       <div 
         className={`h-3 w-3 rounded-full ${
+          status?.error ? 'bg-red-500' :
           status?.backend === 'healthy' ? 'bg-green-500' : 
           status?.backend === 'unhealthy' ? 'bg-yellow-500' : 'bg-red-500'
         } mr-2`}
-        title={status?.backend || 'Unknown'}
+        title={status?.error ? 'Connection Error' : status?.backend || 'Unknown'}
       ></div>
       <span className="text-sm text-gray-600 dark:text-gray-300">
-        {status?.backend === 'healthy' 
-          ? 'Backend: Connected' 
-          : status?.backend === 'unhealthy'
-          ? 'Backend: Unhealthy'
-          : 'Backend: Disconnected'}
+        {status?.error 
+          ? 'Backend: Connection Error'
+          : status?.backend === 'healthy' 
+            ? 'Backend: Connected' 
+            : status?.backend === 'unhealthy'
+              ? 'Backend: Unhealthy'
+              : 'Backend: Disconnected'}
       </span>
     </div>
   );

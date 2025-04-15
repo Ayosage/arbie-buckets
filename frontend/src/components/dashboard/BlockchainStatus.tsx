@@ -12,6 +12,8 @@ interface StatusData {
   chainId: string;
   walletAddress?: string;
   timestamp: string;
+  error?: boolean;
+  errorMessage?: string;
 }
 
 const BlockchainStatus = ({ className }: BlockchainStatusProps) => {
@@ -23,29 +25,87 @@ const BlockchainStatus = ({ className }: BlockchainStatusProps) => {
     const fetchStatus = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/status');
         
-        if (!response.ok) {
-          throw new Error(`Error: ${response.status}`);
+        // Add a timeout to the fetch to handle unresponsive servers
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        try {
+          const response = await fetch('/api/status', { 
+            signal: controller.signal 
+          });
+          
+          clearTimeout(timeoutId);
+          
+          // Even if we get a response, check if it has error status
+          if (!response.ok) {
+            try {
+              const errorData = await response.json();
+              setError(errorData.errorMessage || `Error: ${response.status}`);
+              setStatus({
+                ...errorData,
+                error: true,
+              });
+            } catch (jsonError) {
+              console.log('Failed to parse JSON from error response:', jsonError);
+              setError(`HTTP Error: ${response.status}`);
+              setStatus({
+                connected: false,
+                network: 'Unknown',
+                chainId: '0',
+                timestamp: new Date().toISOString(),
+                error: true,
+                errorMessage: `HTTP Error: ${response.status}`
+              });
+            }
+            return;
+          }
+          
+          const data = await response.json();
+          
+          // Check if the response contains an error flag
+          if (data.error) {
+            setError(data.errorMessage || 'Connection error');
+            setStatus(data);
+          } else {
+            setStatus(data);
+            setError(null);
+          }
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          throw fetchError; // Re-throw for the outer catch block
         }
-        
-        const data = await response.json();
-        setStatus(data);
-        setError(null);
       } catch (err) {
         console.error('Failed to fetch blockchain status:', err);
-        setError('Failed to connect to blockchain service');
-        setStatus({ connected: false, network: 'Unknown', chainId: '0', timestamp: new Date().toISOString() });
+        
+        // Look for connection refused errors
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        const isConnectionError = 
+          errorMessage.includes('ECONNREFUSED') || 
+          errorMessage.includes('Failed to fetch') || 
+          errorMessage.includes('NetworkError') ||
+          errorMessage.includes('AbortError');
+        
+        setError(isConnectionError ? 'Connection refused - backend unavailable' : 'Failed to connect to blockchain service');
+        setStatus({ 
+          connected: false, 
+          network: 'Unknown', 
+          chainId: '0', 
+          timestamp: new Date().toISOString(),
+          error: true,
+          errorMessage: isConnectionError ? 'Backend service unavailable' : 'Unknown error'
+        });
       } finally {
         setLoading(false);
       }
     };
     
     if (error) {
-        console.log(error)
+        console.log('Blockchain Status Error:', error);
     }
-    fetchStatus();
     
+    fetchStatus();
+    console.log('Fetching blockchain status...');
     // Refresh status every 30 seconds
     const interval = setInterval(fetchStatus, 30000);
     
@@ -64,13 +124,21 @@ const BlockchainStatus = ({ className }: BlockchainStatusProps) => {
   return (
     <div className={`flex items-center ${className}`}>
       <div 
-        className={`h-3 w-3 rounded-full ${status?.connected ? 'bg-green-500' : 'bg-red-500'} mr-2`}
-        title={status?.connected ? 'Connected' : 'Disconnected'}
+        className={`h-3 w-3 rounded-full ${
+          status?.error ? 'bg-red-500' : 
+          status?.connected ? 'bg-green-500' : 'bg-red-500'
+        } mr-2`}
+        title={
+          status?.error ? 'Connection Error' : 
+          status?.connected ? 'Connected' : 'Disconnected'
+        }
       ></div>
       <span className="text-sm text-gray-600 dark:text-gray-300">
-        {status?.connected 
-          ? `Connected to ${status.network}` 
-          : 'Disconnected from blockchain'}
+        {status?.error 
+          ? `Error: ${error || 'Unable to connect'}` 
+          : status?.connected 
+            ? `Connected to ${status.network}` 
+            : 'Disconnected from blockchain'}
       </span>
     </div>
   );
