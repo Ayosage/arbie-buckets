@@ -8,8 +8,8 @@ export async function GET() {
       headers: {
         'Content-Type': 'application/json',
       },
-      cache: 'no-store',
-      next: { revalidate: 10 }, // Revalidate every 10 seconds
+    
+      next: { revalidate: 15 }, // Revalidate every 10 seconds
     });
 
     if (!response.ok) {

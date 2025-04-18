@@ -5,12 +5,14 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"os"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/gin-gonic/gin"
-
 	"github.com/arbie-buckets/blockchain"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/gin-gonic/gin"
 )
 
 // SetupRoutes configures all API routes
@@ -59,6 +61,10 @@ func SetupRoutes(r *gin.Engine, blockchainService *blockchain.BlockchainService)
 		// Market data
 		api.GET("/markets/exchanges", getExchanges)
 		api.GET("/markets/tokens", getTokens)
+
+		// Connection Test endpoints
+		api.GET("/connection-test/message", getConnectionTestMessage)
+		api.POST("/connection-test/message", setConnectionTestMessage)
 	}
 }
 
@@ -99,7 +105,7 @@ func getWalletBalance(blockchainService *blockchain.BlockchainService) gin.Handl
 		}
 
 		// Hardcoded token addresses for Base network
-		tokenAddresses := map[string]TokenInfo{
+		tokenAddresses := map[string]blockchain.TokenInfo{
 			"eth": {
 				Address:  "0x4200000000000000000000000000000000000006",
 				Symbol:   "ETH",
@@ -481,4 +487,225 @@ func pingNetwork(blockchainService *blockchain.BlockchainService) gin.HandlerFun
 			"timestamp":      time.Now().Format(time.RFC3339),
 		})
 	}
+}
+
+// Connection Test handlers
+func getConnectionTestMessage(c *gin.Context) {
+	// Get contract address
+	contractAddress := os.Getenv("CONNECTION_TEST_CONTRACT_ADDRESS")
+	if contractAddress == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "CONNECTION_TEST_CONTRACT_ADDRESS not set in environment",
+		})
+		return
+	}
+
+	// Initialize blockchain service
+	blockchainService := blockchain.GetService()
+	if blockchainService == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Blockchain service not initialized",
+		})
+		return
+	}
+
+	// Get client from blockchain service
+	client, err := blockchainService.GetConnectionClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to get blockchain client: " + err.Error(),
+		})
+		return
+	}
+
+	// For demonstration purposes, we'll try to call the contract directly
+	// without relying on the NewConnectionTestService function
+	contractAddr := common.HexToAddress(contractAddress)
+
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call the contract's "message" function (this is a simplified approach)
+	// The function selector for "message()" is the first 4 bytes of keccak256("message()")
+	data := common.FromHex("0xe21f37ce")
+
+	callMsg := ethereum.CallMsg{
+		To:   &contractAddr,
+		Data: data,
+	}
+
+	result, err := client.CallContract(ctx, callMsg, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to call contract: " + err.Error(),
+		})
+		return
+	}
+
+	// Decode the result (simplified approach for string return)
+	message := "Unable to decode message"
+	if len(result) > 64 {
+		// For string return types, the data after position 64 contains the actual string
+		stringData := result[64:]
+		message = string(stringData)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":         true,
+		"message":         message,
+		"contractAddress": contractAddress,
+	})
+}
+func setConnectionTestMessage(c *gin.Context) {
+	// Parse request body
+	var req struct {
+		Message string `json:"message"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request: " + err.Error(),
+		})
+		return
+	}
+	println(req.Message) // For debugging purposes
+	// Initialize blockchain service
+
+	// Get the contract address from environment
+	contractAddress := os.Getenv("CONNECTION_TEST_CONTRACT_ADDRESS")
+	if contractAddress == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "CONNECTION_TEST_CONTRACT_ADDRESS not set in environment",
+		})
+		return
+	}
+
+	// Initialize blockchain service
+	blockchainService := blockchain.GetService()
+	if blockchainService == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Blockchain service not initialized",
+		})
+		return
+	}
+
+	// Get client from blockchain service
+	client, err := blockchainService.GetConnectionClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to get blockchain client: " + err.Error(),
+		})
+		return
+	}
+
+	// Get transaction auth
+	auth, err := blockchainService.CreateTransactionAuth()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to create transaction authorization: " + err.Error(),
+		})
+		return
+	}
+
+	// For demonstration purposes, we'll create and send the transaction directly
+	// without relying on the NewConnectionTestService function
+	contractAddr := common.HexToAddress(contractAddress)
+
+	// The function selector for "setMessage(string)" + encoded parameter
+	// Pack the function selector and the message parameter
+	// Function signature: setMessage(string)
+	methodID := common.FromHex("0x368b8772") // first 4 bytes of keccak256("setMessage(string)")
+
+	// Prepare the string data (ABI encoding)
+	// For a string, we need to encode:
+	// 1. The offset to the string data (32 bytes)
+	// 2. The length of the string (32 bytes)
+	// 3. The string data itself, padded to 32 bytes
+
+	// Calculate the offset (32 bytes for now, since our string starts after the first 32 bytes)
+	// This is a constant for a single string parameter
+	offset := common.LeftPadBytes(big.NewInt(32).Bytes(), 32)
+
+	// Calculate the length of the string
+	strLen := common.LeftPadBytes(big.NewInt(int64(len(req.Message))).Bytes(), 32)
+
+	// Pad the string to 32 bytes
+	// First, convert the string to bytes
+	msgBytes := []byte(req.Message)
+	paddedMsg := make([]byte, (len(msgBytes)+31)/32*32) // Round up to nearest 32 bytes
+	copy(paddedMsg, msgBytes)
+
+	// Combine all parts
+	inputData := append(methodID, append(offset, append(strLen, paddedMsg...)...)...)
+
+	// Create transaction data
+	gasLimit := uint64(100000) // Reasonable gas limit for a simple message update
+
+	// Get nonce for the sender address
+	nonce, err := client.PendingNonceAt(context.Background(), auth.From)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to get nonce: " + err.Error(),
+		})
+		return
+	}
+
+	// Get gas price suggestion
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to get gas price: " + err.Error(),
+		})
+		return
+	}
+
+	// Create the transaction
+	tx := types.NewTransaction(
+		nonce,
+		contractAddr,
+		big.NewInt(0), // No ETH value being sent
+		gasLimit,
+		gasPrice,
+		inputData,
+	)
+
+	// Sign the transaction using our new helper method
+	signedTx, err := blockchainService.SignAnyTransaction(tx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to sign transaction: " + err.Error(),
+		})
+		return
+	}
+
+	// Send the transaction
+	err = client.SendTransaction(context.Background(), signedTx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to send transaction: " + err.Error(),
+		})
+		return
+	}
+
+	// Return the actual transaction hash
+	txHash := signedTx.Hash().Hex()
+
+	// Return success response
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"txHash":  txHash,
+	})
 }

@@ -63,13 +63,6 @@ const arbitrageContractABI = `[
     }
 ]`
 
-// TokenInfo represents basic token information
-type TokenInfo struct {
-	Address  string
-	Symbol   string
-	Decimals uint8
-}
-
 // ArbitrageOpportunity represents an arbitrage opportunity
 type ArbitrageOpportunity struct {
 	FromToken  string

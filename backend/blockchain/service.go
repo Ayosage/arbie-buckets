@@ -29,41 +29,6 @@ var (
 	serviceMutex  sync.RWMutex
 )
 
-// Contract ABI definitions
-const arbitrageContractABI = `[
-    {
-        "inputs": [
-            {"internalType": "address", "name": "fromToken", "type": "address"},
-            {"internalType": "address", "name": "toToken", "type": "address"},
-            {"internalType": "uint256", "name": "amount", "type": "uint256"},
-            {"internalType": "uint256", "name": "minReturn", "type": "uint256"}
-        ],
-        "name": "executeArbitrage",
-        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "getProfitOpportunities",
-        "outputs": [
-            {
-                "components": [
-                    {"internalType": "address", "name": "fromToken", "type": "address"},
-                    {"internalType": "address", "name": "toToken", "type": "address"},
-                    {"internalType": "uint256", "name": "profit", "type": "uint256"},
-                    {"internalType": "uint256", "name": "timestamp", "type": "uint256"}
-                ],
-                "internalType": "struct Arbitrage.Opportunity[]",
-                "name": "",
-                "type": "tuple[]"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    }
-]`
-
 // TokenInfo represents basic token information
 type TokenInfo struct {
 	Address  string
@@ -82,11 +47,13 @@ type ArbitrageOpportunity struct {
 
 // BlockchainService provides methods to interact with blockchain
 type BlockchainService struct {
-	connManager  *connection.ConnectionManager
-	contractABI  abi.ABI
-	contractAddr common.Address
-	privateKey   *ecdsa.PrivateKey
-	chainID      *big.Int
+	connManager        *connection.ConnectionManager
+	contractABI        abi.ABI
+	contractAddr       common.Address
+	connectionTestABI  abi.ABI
+	connectionTestAddr common.Address
+	privateKey         *ecdsa.PrivateKey
+	chainID            *big.Int
 }
 
 // Initialize sets up the blockchain service and connection
@@ -149,7 +116,7 @@ func GetService() *BlockchainService {
 // NewBlockchainService creates a new instance of the blockchain service
 func NewBlockchainService(connManager *connection.ConnectionManager, contractAddress string) (*BlockchainService, error) {
 	// Parse contract ABI
-	parsedABI, err := abi.JSON(strings.NewReader(arbitrageContractABI))
+	parsedABI, err := abi.JSON(strings.NewReader(ArbitrageContractABI))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse contract ABI: %w", err)
 	}
@@ -304,7 +271,7 @@ func (s *BlockchainService) ExecuteArbitrage(fromToken, toToken common.Address, 
 	}
 
 	// Create transaction auth
-	auth, err := s.createTransactionAuth()
+	auth, err := s.CreateTransactionAuth()
 	if err != nil {
 		return "", err
 	}
@@ -371,7 +338,7 @@ func (s *BlockchainService) WaitForTransaction(txHash common.Hash) (*types.Recei
 }
 
 // createTransactionAuth creates an authenticated transaction
-func (s *BlockchainService) createTransactionAuth() (*bind.TransactOpts, error) {
+func (s *BlockchainService) CreateTransactionAuth() (*bind.TransactOpts, error) {
 	// Get client with resilient connection
 	client, err := s.connManager.Client()
 	if err != nil {
@@ -466,4 +433,13 @@ func (s *BlockchainService) GetConnectionClient() (*ethclient.Client, error) {
 	}
 
 	return s.connManager.Client()
+}
+
+// SignAnyTransaction signs any transaction with the service's private key
+func (s *BlockchainService) SignAnyTransaction(tx *types.Transaction) (*types.Transaction, error) {
+	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(s.chainID), s.privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	}
+	return signedTx, nil
 }

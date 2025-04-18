@@ -68,7 +68,6 @@ func main() {
 		log.Println("Warning: Blockchain service not available, running in limited mode")
 		log.Println("Application will attempt to reconnect automatically")
 	}
-
 	// Set up API routes with the blockchain service
 	SetupRoutes(r, blockchainService)
 

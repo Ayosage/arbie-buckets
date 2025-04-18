@@ -2,9 +2,9 @@ require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
 
 // Default values when environment variables are not set
-const PRIVATE_KEY = process.env.PRIVATE_KEY || "0000000000000000000000000000000000000000000000000000000000000000";
-const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://sepolia.infura.io/v3/YOUR-PROJECT-ID";
-const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
+const PRIVATE_KEY = process.env.TEST_WALLET_PK_2 || "0000000000000000000000000000000000000000000000000000000000000000";
+const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://sepolia.base.org"; // Updated to match .env
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || ""
 const COINMARKETCAP_API_KEY = process.env.COINMARKETCAP_API_KEY || "";
 
 /** @type import('hardhat/config').HardhatUserConfig */
